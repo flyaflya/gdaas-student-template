@@ -5,6 +5,12 @@ Station 1.3 and keep alive all semester. It starts out working: fill in your
 name and env vars and every Challenge 1 check passes. Every later challenge
 plugs into a clearly-marked slot.
 
+**Get your copy:** on
+[github.com/flyaflya/gdaas-student-template](https://github.com/flyaflya/gdaas-student-template),
+click **Use this template → Create a new repository**, name it `my-site`,
+make it **Public**, then clone your new repo to your machine. Chapter 3 of
+the course book walks through every step.
+
 **You edit two files.** Everything else is wiring you can read but don't need
 to touch (yet):
 
@@ -37,8 +43,11 @@ to touch (yet):
 
 ## Deploy and register (Chapter 3 walks through this)
 
-1. Push this project to a GitHub repository of your own.
-2. Set `repoUrl` in `src/profile.ts` to that repo's URL (e.g.
+1. If you used **Use this template**, your GitHub repo already exists and
+   your clone knows where it lives, so a plain `git push` sends commits
+   there. (Built from scratch instead? Push your project to a new public
+   repo of your own.)
+2. Set `repoUrl` in `src/profile.ts` to your repo's URL (e.g.
    `https://github.com/your-username/your-repo`). The course grader reads it
    from `/api/health` and checks you have ≥ 5 commits spread over days, not
    one bulk dump. Commit early and often so this is free by Challenge 1.
