@@ -65,9 +65,13 @@ to touch (yet):
 2. In your Supabase project: **SQL Editor → New query**, paste the contents
    of [`supabase/guestbook.sql`](./supabase/guestbook.sql), Run. That
    creates the guestbook table (Chapter 4 explains every line).
-3. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` to
-   `.env.local`. Both are in the Supabase dashboard under **Settings →
-   API Keys** (use the publishable key). Restart `npm run dev`.
+3. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   to `.env.local`. Both are in the Supabase dashboard under **Settings →
+   API Keys** (use the publishable key). The variable *name* must match
+   `.env.example` — a snippet copied from Supabase may name it differently,
+   though the older `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
+   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` also work.
+   Restart `npm run dev`.
 4. Add the same two variables in Vercel's Environment Variables and
    redeploy.
 
@@ -114,6 +118,35 @@ contracts (the exact JSON to send and receive) and starter code.
 | 3 — Decision Simulator | `src/app/api/simulator/{meta,decide}/route.ts` | `src/app/simulator/page.tsx` |
 | 4 — Causality Audit | `src/app/api/causality/{meta,decide}/route.ts` | `src/app/causality/page.tsx` |
 | 5 — Capstone | `src/app/api/capstone/{meta,decide}/route.ts` | `src/app/capstone/page.tsx` |
+
+## Challenge 2: the Reasoning & Uncertainty Service
+
+The build guide in the course book (end of Lane 2) walks through every step.
+The short version of what lives where:
+
+| Piece | File | Your job |
+|---|---|---|
+| The handshake | `src/app/api/reasoning/meta/route.ts` | Un-comment the three-line answer (marked TODO) |
+| The brain | `src/app/api/reasoning/decide/route.ts` | Fill in the three TODO blocks, one per problem type |
+| The memory | `supabase/reasoning.sql` + `src/lib/reasoning-store.ts` | Run the SQL once in Supabase's SQL Editor; the store ships ready |
+| The face | `src/app/reasoning/page.tsx` | Rewrite the TODO(yours) sentences in your own words |
+| The visuals | `src/components/reasoning/{TwoWayTable,BernoulliFourViews}.tsx` | Ship ready; read them so you can explain them |
+
+One database step: paste `supabase/reasoning.sql` into your Supabase
+project's **SQL Editor → New query** and Run, exactly like the guestbook in
+Chapter 3. No new env vars: the store reads the same Supabase values the
+guestbook uses.
+
+Two scripts keep you out of trouble before you spend a graded battery run
+(the platform allows 3 per 24 hours):
+
+```bash
+npm run try-reasoning    # sends 3 sample problems, prints yours vs correct
+npm run selfcheck        # once meta answers, also runs 9 problems + the page check
+```
+
+Both accept a deployed URL the same way selfcheck does:
+`npm run try-reasoning -- https://your-site.vercel.app`.
 
 ## The beauty bonus
 
