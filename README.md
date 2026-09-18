@@ -53,7 +53,7 @@ to touch (yet):
    one bulk dump. Commit early and often so this is free by Challenge 1.
 3. In [Vercel](https://vercel.com): **Add New → Project**, import your repo,
    deploy. You get a `something.vercel.app` URL.
-4. In Vercel: **Settings → Environment Variables**, add `SITE_TOKEN` with
+4. In Vercel: open the **Environment Variables** tab, add `SITE_TOKEN` with
    the same value as your `.env.local`, then redeploy (env vars are read at
    deploy time).
 5. Register your Vercel URL on the course platform's Register-site page. A
