@@ -148,6 +148,34 @@ npm run selfcheck        # once meta answers, also runs 9 problems + the page ch
 Both accept a deployed URL the same way selfcheck does:
 `npm run try-reasoning -- https://your-site.vercel.app`.
 
+## Challenge 3: the Decision Simulator
+
+The build guide in the course book (end of Lane 3, "Build Your Decision
+Simulator") walks through every step and prints each file in full. The
+short version of what lives where:
+
+| Piece | File | Your job |
+|---|---|---|
+| The handshake | `src/app/api/simulator/meta/route.ts` | Paste the guide's Step 1 version over the 501 placeholder |
+| The memory | `supabase/simulator.sql` + `src/lib/simulator-store.ts` | Run the SQL once in Supabase's SQL Editor; the store ships ready |
+| The brain | `src/app/api/simulator/decide/route.ts` | Paste the guide's Step 4 version over the 501 placeholder |
+| The DAG | `public/images/dag.png` | Draw it with daft in Python (Step 5) and save it there |
+| The face | `src/app/simulator/page.tsx` | Paste the guide's Step 6 version; rewrite the TODO(yours) sentences |
+| The chart | `src/components/simulator/CandidateOutcomes.tsx` | Ships ready; read it so you can explain it |
+
+One database step: paste `supabase/simulator.sql` into your Supabase
+project's **SQL Editor → New query** and Run, exactly like Challenge 2.
+No new env vars.
+
+The same two safety scripts, for Challenge 3:
+
+```bash
+npm run try-simulator    # sends 3 sample games, prints yours vs correct
+npm run selfcheck        # once meta answers, also runs 3 games + the page and DAG check
+```
+
+Both accept a deployed URL: `npm run try-simulator -- https://your-site.vercel.app`.
+
 ## The beauty bonus
 
 The highest grade without it is A-. The professor reviews live sites by hand
