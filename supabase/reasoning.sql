@@ -30,3 +30,9 @@ create policy "anyone can insert" on public.reasoning_latest
   for insert with check (true);
 create policy "anyone can update" on public.reasoning_latest
   for update using (true);
+
+-- The grant, same idea as the guestbook: the policies say which rows, the
+-- grant lets the "anon" role (the publishable key, no sign-in) use the
+-- table at all. Both are required. Without it, every request fails with
+-- "permission denied for table reasoning_latest".
+grant select, insert, update on public.reasoning_latest to anon;

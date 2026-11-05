@@ -18,3 +18,13 @@ create policy "anyone can read" on public.guestbook
   for select using (true);
 create policy "anyone can sign" on public.guestbook
   for insert with check (true);
+
+-- The grant. A policy says which rows a role may read or write; a grant
+-- says whether the role may use the table at all. Both are required.
+-- "anon" is the role Supabase uses for requests made with the publishable
+-- key and no signed-in user, which is how your site connects. (Signed-in
+-- users get the "authenticated" role; your site has none.) Until 2026
+-- Supabase added this grant to every new table automatically; now you
+-- write it yourself. Without it, every request fails with
+-- "permission denied for table guestbook".
+grant select, insert on public.guestbook to anon;

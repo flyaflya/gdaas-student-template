@@ -31,3 +31,9 @@ create policy "anyone can insert" on public.simulator_latest
   for insert with check (true);
 create policy "anyone can update" on public.simulator_latest
   for update using (true);
+
+-- The grant, same idea as the other two tables: the policies say which
+-- rows, the grant lets the "anon" role (the publishable key, no sign-in)
+-- use the table at all. Both are required. Without it, every request
+-- fails with "permission denied for table simulator_latest".
+grant select, insert, update on public.simulator_latest to anon;

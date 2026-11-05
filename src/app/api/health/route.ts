@@ -35,14 +35,22 @@ async function databaseStatus(): Promise<string> {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return "not configured";
   try {
-    const { count, error } = await createClient(url, key)
+    const client = createClient(url, key);
+    const { count, error, status } = await client
       .from("guestbook")
       .select("*", { count: "exact", head: true })
       .abortSignal(AbortSignal.timeout(3000));
     if (error) {
-      return /abort|timeout/i.test(error.message)
-        ? "error: could not reach the database"
-        : `error: ${error.message}`;
+      if (/abort|timeout/i.test(error.message)) return "error: could not reach the database";
+      if (error.message) return `error: ${error.message}`;
+      // A HEAD reply has no body, so Supabase's error text is lost. Ask
+      // again with a GET, whose reply carries the text.
+      const retry = await client
+        .from("guestbook")
+        .select("id")
+        .limit(1)
+        .abortSignal(AbortSignal.timeout(3000));
+      return `error: ${retry.error?.message || `HTTP ${status}`}`;
     }
     const n = count ?? 0;
     return `connected (${n} guestbook signature${n === 1 ? "" : "s"})`;
