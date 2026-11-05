@@ -176,6 +176,33 @@ npm run selfcheck        # once meta answers, also runs 3 games + the page and D
 
 Both accept a deployed URL: `npm run try-simulator -- https://your-site.vercel.app`.
 
+## Challenge 4: the Causality Audit Service
+
+The build guide in the course book (end of Lane 4, "Build Your Causality
+Auditor") walks through every step and prints each file in full, except one
+function you write yourself. The short version of what lives where:
+
+| Piece | File | Your job |
+|---|---|---|
+| The handshake | `src/app/api/causality/meta/route.ts` | Paste the guide's Step 1 version over the 501 placeholder |
+| The memory | `supabase/causality.sql` + `src/lib/causality-store.ts` | Run the SQL once in Supabase's SQL Editor; the store ships ready |
+| The brain | `src/app/api/causality/decide/route.ts` | Write `classifyStructure()` (Step 4c); everything else in the file is complete |
+| The DAGs | `public/images/causality/{fork,pipe,collider,direct}.png` | Run `python scripts/draw_causality_dags.py` (Step 5) |
+| The face | `src/app/causality/page.tsx` | Rewrite the TODO(yours) sentences in your own words |
+| The chart | `src/components/causality/StratifiedComparison.tsx` | Ships ready; read it so you can explain it |
+
+One database step: paste `supabase/causality.sql` into your Supabase
+project's **SQL Editor → New query** and Run. No new env vars.
+
+The same two safety scripts, for Challenge 4:
+
+```bash
+npm run try-causality    # sends 8 fresh sample audits, prints yours vs correct
+npm run selfcheck        # once meta answers, also runs 4 audits + the page and DAG check
+```
+
+Both accept a deployed URL: `npm run try-causality -- https://your-site.vercel.app`.
+
 ## The beauty bonus
 
 The highest grade without it is A-. The professor reviews live sites by hand
