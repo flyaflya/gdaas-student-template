@@ -51,8 +51,8 @@ choice; five is a kindergarten.
 
 The beauty bonus is awarded by a human looking at your live site, and it
 gates the top of the ladder: **without it the highest grade is A-**; Lane 5
-complete *plus* the bonus is an A. It can be earned at any point in the
-semester, so make your site yours early.
+complete *plus* the bonus is an A. The professor reviews sites near the
+end of the term; your syllabus and progress page give the dates.
 
 What earns it is **evidence of choices**, not effort or complexity:
 

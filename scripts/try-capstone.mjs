@@ -1,45 +1,48 @@
 #!/usr/bin/env node
 /**
- * npm run try-capstone [-- <url>] [-- --domain staffing] [-- --show [domain]]
+ * npm run try-capstone [-- <url>] [-- --domain staffing]
  *
- * Challenge 5 practice runs, without spending a battery run. Generates six
- * fresh sample probes for your domain, sends them to YOUR
- * /api/capstone/decide (local dev server by default), and prints your
- * answer next to the correct one:
+ * Challenge 5 practice runs, without spending a battery run:
+ *
+ *   1. Sends YOUR problem (my-problem.json, downloaded from the Capstone
+ *      page) to your /api/capstone/decide and asks the course grader whether
+ *      the answer passes. Your problem never changes, so after this your
+ *      /capstone page shows it.
+ *   2. Sends 5 fresh practice problems from the same story, and prints your
+ *      numbers next to the grader's.
  *
  *   npm run try-capstone                                    # local dev server
  *   npm run try-capstone -- https://your-site.vercel.app    # deployed site
  *   npm run try-capstone -- --domain pricing                # before your meta route exists
- *   npm run try-capstone -- --show                          # print sample problems, send nothing
- *   npm run try-capstone -- --show inventory                # the same, one domain
  *
- * Your domain comes from your /api/capstone/meta. If that route isn't built
- * yet, pass --domain. With neither, the script sends two probes from each
- * of the four domains. --show prints one problem from each of a domain's two
- * stories (who it is for, the narrative, the numbers, the first rows, and
- * the correct values) without contacting any site: use it to choose a domain.
- *
- * Every probe your service answers is saved to Supabase, so after a run
- * your /capstone page shows the last one. Run it again and the page should
- * change: new data, new numbers, maybe a new recommendation.
- *
- * The sample probes and the grading rules live in scripts/capstone-probes.mjs,
- * a small reimplementation of the course grader that selfcheck also uses.
+ * The domain comes from my-problem.json, then from your /api/capstone/meta,
+ * then from --domain. Problems and grading come from the course platform
+ * (see scripts/capstone-probes.mjs), so you need an internet connection.
  */
 
-import { DOMAINS, drawProbe, grade, round2 } from "./capstone-probes.mjs";
+import {
+  DOMAINS,
+  MY_PROBLEM_FILE,
+  PLATFORM,
+  askSite,
+  checkAnswer,
+  describeOutcomes,
+  fetchPractice,
+  readMyProblem,
+} from "./capstone-probes.mjs";
 
 const args = process.argv.slice(2);
 const domainFlag = args.indexOf("--domain");
 const forcedDomain = domainFlag >= 0 ? args[domainFlag + 1] : null;
-const showFlag = args.indexOf("--show");
-const showDomain = showFlag >= 0 && DOMAINS.includes(args[showFlag + 1]) ? args[showFlag + 1] : null;
-const flagValues = new Set([domainFlag + 1, showDomain ? showFlag + 1 : -1].filter((i) => i > 0));
-const urlArg = args.find((a, i) => !a.startsWith("--") && !flagValues.has(i));
+const urlArg = args.find((a, i) => !a.startsWith("--") && (domainFlag < 0 || i !== domainFlag + 1));
 const siteUrl = (urlArg ?? "http://localhost:3000").replace(/\/+$/, "");
 const TIMEOUT_MS = 10_000;
 
-// ── Which domain? ──────────────────────────────────────────────────────────
+if (forcedDomain && !DOMAINS.includes(forcedDomain)) {
+  console.log(`--domain must be one of ${DOMAINS.join(", ")} (got "${forcedDomain}")`);
+  process.exit(1);
+}
+
 async function declaredDomain() {
   try {
     const res = await fetch(`${siteUrl}/api/capstone/meta`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
@@ -51,108 +54,85 @@ async function declaredDomain() {
   }
 }
 
-if (forcedDomain && !DOMAINS.includes(forcedDomain)) {
-  console.log(`--domain must be one of ${DOMAINS.join(", ")} (got "${forcedDomain}")`);
+const mine = readMyProblem();
+const domain = mine?.domain ?? (await declaredDomain()) ?? forcedDomain;
+
+console.log(`\nTry-capstone against ${siteUrl} (grading by ${PLATFORM})`);
+if (!domain) {
+  console.log(
+    `No domain yet. Download ${MY_PROBLEM_FILE} from the Capstone page on the course platform and put it in the project folder, or pass --domain.`
+  );
   process.exit(1);
 }
-
-// ── --show: print sample problems and stop ─────────────────────────────────
-if (showFlag >= 0) {
-  for (const d of showDomain ? [showDomain] : DOMAINS) {
-    console.log(`\n=== ${d} ===`);
-    for (const story of [0, 1]) {
-      const { probe, values } = drawProbe(d, story, "show");
-      const { reader, ...rest } = probe.scenario.params;
-      console.log(`\nStory ${story + 1} of 2. The reader (params.reader): ${reader}`);
-      console.log(probe.scenario.narrative);
-      console.log(`params: ${JSON.stringify(rest)}`);
-      console.log(`candidates: ${probe.candidates.map((c) => `${c.id} (${c.label})`).join(", ")}`);
-      console.log(`history: ${probe.history.length} rows. The first 5:`);
-      for (const row of probe.history.slice(0, 5)) console.log(`  ${JSON.stringify(row)}`);
-      console.log(probe.scenario.valueDefinition);
-      const sorted = [...values].sort((a, b) => b[1] - a[1]);
-      console.log(`correct values, best first: ${sorted.map(([id, v]) => `${id} ${round2(v)}`).join(", ")}`);
-    }
-  }
-  console.log("\nEvery run draws fresh numbers. Both stories come up in the battery, so your report must work for either reader.");
-  process.exit(0);
-}
-const domain = forcedDomain ?? (await declaredDomain());
-const plan = domain ? Array(6).fill(domain) : DOMAINS.flatMap((d) => [d, d]);
-const samples = plan.map((d, i) => drawProbe(d, i + 1));
-
-console.log(`\nTry-capstone against ${siteUrl}`);
-console.log(
-  domain
-    ? `Domain: ${domain}${forcedDomain ? " (from --domain)" : " (from your /api/capstone/meta)"}\n`
-    : "No domain declared yet (your meta route isn't built), so this run sends two probes from each domain.\n"
-);
+console.log(`Domain: ${domain}\n`);
 
 let failures = 0;
-for (const sample of samples) {
-  const { probe } = sample;
-  let res;
+
+async function tryOne(probe, label, correct) {
   const started = Date.now();
-  try {
-    res = await fetch(`${siteUrl}/api/capstone/decide`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(probe),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-  } catch (err) {
-    const timedOut = err instanceof Error && err.name === "TimeoutError";
-    console.log(
-      timedOut
-        ? `  \u2717 ${probe.probeId} (${probe.domain}): no answer within 10 seconds`
-        : `  \u2717 ${probe.probeId}: could not connect. Is the dev server running at ${siteUrl}?`
-    );
+  const { answer, error } = await askSite(siteUrl, probe, TIMEOUT_MS);
+  if (error) {
+    console.log(`  \u2717 ${label}: ${error}`);
     failures++;
-    continue;
+    return;
   }
   const seconds = (Date.now() - started) / 1000;
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const body = await res.json();
-      if (body?.error) detail = `: ${body.error}`;
-    } catch {
-      // not JSON; the status code is all we have
-    }
-    console.log(`  \u2717 ${probe.probeId} (${probe.domain}): HTTP ${res.status} from POST /api/capstone/decide${detail}`);
-    failures++;
-    continue;
-  }
-  let answer = null;
+  let miss;
   try {
-    answer = await res.json();
-  } catch {
-    console.log(`  \u2717 ${probe.probeId}: the response was not valid JSON`);
+    miss = await checkAnswer(probe, answer);
+  } catch (err) {
+    console.log(`  \u2717 ${label}: ${err instanceof Error ? err.message : String(err)}`);
     failures++;
-    continue;
+    return;
   }
-  const miss = grade(sample, answer);
   if (miss === null) {
-    console.log(`  \u2713 ${probe.probeId} (${probe.domain}): correct (answered in ${seconds.toFixed(1)}s)`);
+    console.log(`  \u2713 ${label}: correct (answered in ${seconds.toFixed(1)}s)`);
   } else {
-    console.log(`  \u2717 ${probe.probeId} (${probe.domain}): ${miss}`);
+    console.log(`  \u2717 ${label}: ${miss}`);
     failures++;
   }
-  const yours = `${answer.action} = ${answer.expectedValue}`;
-  const all = [...sample.values].sort((a, b) => b[1] - a[1]).map(([id, v]) => `${id} ${round2(v)}`).join(", ");
-  console.log(`      yours:   ${yours}`);
-  console.log(`      correct: ${all}`);
+  const chosen = probe.candidates.find((c) => c.id === answer.action)?.label ?? String(answer.action);
+  console.log(`      yours:   choose ${chosen}`);
+  for (const line of describeOutcomes(probe, answer.outcomes)) console.log(`               ${line}`);
+  if (correct) {
+    const right = probe.candidates.find((c) => c.id === correct.actionId)?.label ?? correct.actionId;
+    console.log(`      correct: choose ${right}`);
+    for (const line of describeOutcomes(probe, correct.outcomes)) console.log(`               ${line}`);
+  }
+}
+
+// 1. Your own problem.
+if (mine) {
+  console.log(`Your problem (${MY_PROBLEM_FILE}):`);
+  await tryOne(mine, "your problem", null);
+} else {
+  console.log(
+    `No ${MY_PROBLEM_FILE} in the project folder. Download it from the Capstone page on the course platform; until then this run sends practice problems only.`
+  );
+  failures++;
+}
+
+// 2. Practice problems from the same story.
+let practice = [];
+try {
+  practice = await fetchPractice(domain, 5);
+} catch (err) {
+  console.log(`\nCould not get practice problems: ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(1);
+}
+console.log("\nPractice problems (fresh every run):");
+for (const [i, { probe, correct }] of practice.entries()) {
+  await tryOne(probe, `practice ${i + 1}`, correct);
 }
 
 console.log("");
 if (failures === 0) {
-  console.log(`All ${samples.length} sample probes answered correctly. Every run draws fresh data, so`);
-  console.log("run it a few times. The battery sends 15. Open /capstone after each run:");
-  console.log("the report should change with the data. Next: npm run selfcheck.");
+  console.log("Your problem and all 5 practice problems pass. The battery sends 14 test");
+  console.log("problems plus yours. Open /capstone: it shows your problem. Next: npm run selfcheck.");
   process.exit(0);
 } else {
   console.log(
-    `${failures} probe${failures === 1 ? "" : "s"} failing. Read the reason on each \u2717 line, fix valueOf() in the decide route, and run again: this script is unlimited, the battery is not.`
+    `${failures} failing. Read the reason on each \u2717 line, fix simulateRun() in src/lib/capstone-simulate.ts, and run again: this script is unlimited, the battery is not.`
   );
   process.exit(1);
 }

@@ -13,8 +13,9 @@
  * Once your causality auditor answers (Challenge 4, after Lane 4), a
  * Challenge 4 section adds four sample audits, the /causality page, and its
  * DAG image. Once your capstone service answers (Challenge 5, after Lane 5),
- * a Challenge 5 section adds three sample probes for your domain and the
- * /capstone page's six data-capstone elements.
+ * a Challenge 5 section sends your own problem (my-problem.json) and two
+ * practice problems, then checks the /capstone page's eight data-capstone
+ * elements.
  *
  *   npm run selfcheck                                  # local dev server
  *   npm run selfcheck -- https://your-site.vercel.app  # your deployed site
@@ -1227,10 +1228,10 @@ let challenge5Built = false;
       report5(
         false,
         "GET /api/capstone/meta",
-        'response must be JSON of the form { service: "capstone", specVersion: "1", studentToken, domain }'
+        'response must be JSON of the form { service: "capstone", specVersion: "2", studentToken, domain }'
       );
-    } else if (String(body.specVersion) !== "1") {
-      report5(false, "GET /api/capstone/meta", `specVersion must be "1" (got "${String(body.specVersion)}")`);
+    } else if (String(body.specVersion) !== "2") {
+      report5(false, "GET /api/capstone/meta", `specVersion must be "2" (got "${String(body.specVersion)}")`);
     } else if (!body.studentToken || body.studentToken === "SITE_TOKEN-env-var-not-set") {
       report5(
         false,
@@ -1268,53 +1269,82 @@ let challenge5Built = false;
     }
 
     if (domain && probes) {
-      // 2. Three decide probes for your domain. The platform's battery sends 15.
-      let lastAnswer = null;
-      let lastProbe = null;
-      const misses = [];
-      let correct = 0;
-      const samples = [1, 2, 3].map((i) => probes.drawProbe(domain, i, "selfcheck-capstone"));
-      for (const sample of samples) {
-        const r = await get("/api/capstone/decide", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(sample.probe),
-        });
-        let miss;
-        let answer = null;
-        if (r.error) {
-          miss = r.error;
-        } else if (!r.ok) {
-          miss = `HTTP ${r.status}${json(r.text)?.error ? `: ${json(r.text).error}` : ""}`;
-        } else {
-          answer = json(r.text);
-          miss = answer === null ? "response was not valid JSON" : probes.grade(sample, answer);
-        }
-        if (miss === null) correct += 1;
-        else misses.push(`${sample.probe.probeId}: ${miss}`);
-        lastAnswer = answer;
-        lastProbe = sample.probe;
-      }
-      if (correct === samples.length) {
-        report5(true, `POST /api/capstone/decide: ${correct}/${samples.length} sample probes correct`);
-      } else {
+      // 2. Your own problem, then two practice problems. The platform's
+      // battery sends your problem plus 14 test problems.
+      const mine = probes.readMyProblem();
+      let myAnswer = null;
+      if (!mine) {
         report5(
           false,
-          `POST /api/capstone/decide: ${correct}/${samples.length} sample probes correct`,
-          `first miss ${misses[0]} (run npm run try-capstone for a side-by-side of yours vs correct)`
+          `POST /api/capstone/decide: your problem`,
+          `no ${probes.MY_PROBLEM_FILE} in the project folder; download it from the Capstone page on the course platform`
         );
+      } else if (mine.domain !== domain) {
+        report5(
+          false,
+          `POST /api/capstone/decide: your problem`,
+          `${probes.MY_PROBLEM_FILE} is for "${mine.domain}" but your meta route declares "${domain}"; download the file for your domain`
+        );
+      } else {
+        const { answer, error } = await probes.askSite(siteUrl, mine);
+        let miss = error ?? null;
+        if (!miss) {
+          try {
+            miss = await probes.checkAnswer(mine, answer);
+          } catch (err) {
+            miss = err instanceof Error ? err.message : String(err);
+          }
+        }
+        if (miss === null) {
+          myAnswer = answer;
+          report5(true, "POST /api/capstone/decide: your problem answered correctly");
+        } else {
+          report5(false, "POST /api/capstone/decide: your problem", `${miss} (run npm run try-capstone for details)`);
+        }
       }
 
-      // 3. The /capstone report shows the answer the API just gave, and
-      // declares every history row on its chart.
-      const page = await get("/capstone");
-      if (page.error || !page.ok) {
+      let practice = [];
+      try {
+        practice = await probes.fetchPractice(domain, 2);
+      } catch (err) {
+        report5(false, "practice problems", err instanceof Error ? err.message : String(err));
+      }
+      if (practice.length > 0) {
+        const misses = [];
+        for (const [i, { probe }] of practice.entries()) {
+          const { answer, error } = await probes.askSite(siteUrl, probe);
+          let miss = error ?? null;
+          if (!miss) {
+            try {
+              miss = await probes.checkAnswer(probe, answer);
+            } catch (err) {
+              miss = err instanceof Error ? err.message : String(err);
+            }
+          }
+          if (miss !== null) misses.push(`practice ${i + 1}: ${miss}`);
+        }
+        const correct = practice.length - misses.length;
+        if (misses.length === 0) {
+          report5(true, `POST /api/capstone/decide: ${correct}/${practice.length} practice problems correct`);
+        } else {
+          report5(
+            false,
+            `POST /api/capstone/decide: ${correct}/${practice.length} practice problems correct`,
+            `first miss ${misses[0]} (run npm run try-capstone for yours next to the correct numbers)`
+          );
+        }
+      }
+
+      // 3. The /capstone report shows your own problem and the answer the
+      // API just gave for it.
+      const page = myAnswer ? await get("/capstone") : null;
+      if (page && (page.error || !page.ok)) {
         report5(false, "GET /capstone", page.error ?? `returned HTTP ${page.status}`);
-      } else {
+      } else if (page) {
         const strip = (html) => html.replace(/<[^>]*>/g, " ").replace(/&[a-z#0-9]+;/gi, " ").replace(/\s+/g, " ").trim();
         // The text inside the first element carrying data-capstone="key",
         // including text in nested tags.
-        const readAttr = (key) => {
+        const inner = (key) => {
           const open = page.text.match(new RegExp(`<([a-zA-Z0-9]+)\\b[^>]*data-capstone="${key}"[^>]*>`));
           if (!open) return null;
           const tag = open[1];
@@ -1325,54 +1355,104 @@ let challenge5Built = false;
           let m;
           while ((m = re.exec(page.text))) {
             depth += m[1] ? -1 : 1;
-            if (depth === 0) return strip(page.text.slice(from, m.index));
+            if (depth === 0) return page.text.slice(from, m.index);
           }
-          return strip(page.text.slice(from));
+          return page.text.slice(from);
+        };
+        const readAttr = (key) => {
+          const html = inner(key);
+          return html === null ? null : strip(html);
+        };
+        const openTag = (key) => page.text.match(new RegExp(`<[^>]*data-capstone="${key}"[^>]*>`))?.[0] ?? null;
+        const share = (text) => {
+          const t = text.replace(/,/g, "");
+          const inN = /(\d+(?:\.\d+)?)\s*(?:in|out of)\s*(\d+)/i.exec(t);
+          if (inN) return Number(inN[1]) / Number(inN[2]);
+          const pc = /(\d+(?:\.\d+)?)\s*%/.exec(t);
+          if (pc) return Number(pc[1]) / 100;
+          const num = /\d*\.?\d+/.exec(t);
+          if (!num) return null;
+          const v = Number(num[0]);
+          return v > 1 ? v / 100 : v;
         };
         const problems = [];
         const rec = readAttr("recommendation");
         if (rec === null || rec.length < 15) {
-          problems.push('data-capstone="recommendation" must carry your recommendation as a real sentence');
+          problems.push('data-capstone="recommendation" must hold your recommendation as a real sentence');
         }
         const shownAction = readAttr("action");
         if (!shownAction) {
           problems.push('no element with data-capstone="action"');
-        } else if (lastAnswer && shownAction.toLowerCase() !== String(lastAnswer.action).toLowerCase()) {
-          problems.push(`data-capstone="action" shows "${shownAction}" but the API just answered "${lastAnswer.action}"`);
+        } else if (shownAction.toLowerCase() !== String(myAnswer.action).toLowerCase()) {
+          problems.push(`data-capstone="action" shows "${shownAction}" but the API just answered "${myAnswer.action}"`);
         }
-        const shownEv = readAttr("expected-value");
-        const answeredEv = asNum(lastAnswer?.expectedValue);
-        if (!shownEv) {
-          problems.push('no element with data-capstone="expected-value"');
-        } else if (answeredEv !== null) {
-          const shownNum = Number.parseFloat(shownEv.replace(/[$,%\s]/g, ""));
-          if (!Number.isFinite(shownNum) || Math.abs(shownNum - answeredEv) > Math.max(1, Math.abs(answeredEv) * 0.011)) {
-            problems.push(`data-capstone="expected-value" shows "${shownEv}" but the API just answered ${answeredEv}`);
+        const chosen = myAnswer.outcomes?.[myAnswer.action] ?? {};
+        const shownTypical = readAttr("typical-result");
+        const answeredTypical = asNum(chosen.typical);
+        if (!shownTypical) {
+          problems.push('no element with data-capstone="typical-result"');
+        } else if (answeredTypical !== null) {
+          const n = Number.parseFloat(shownTypical.replace(/[$,\s]/g, ""));
+          if (!Number.isFinite(n) || Math.abs(n - answeredTypical) > Math.max(1, Math.abs(answeredTypical) * 0.0075)) {
+            problems.push(`data-capstone="typical-result" shows "${shownTypical}" but the API just answered ${Math.round(answeredTypical)}`);
           }
         }
-        const chartTag = page.text.match(/<[^>]*data-capstone="all-data-chart"[^>]*>/);
-        const points = chartTag ? Number.parseInt(chartTag[0].match(/data-points="(\d+)"/)?.[1] ?? "", 10) : NaN;
-        const rows = lastProbe?.history.length ?? 0;
+        const shownChance = readAttr("chance-short");
+        const answeredChance = asNum(chosen.chanceShort);
+        if (!shownChance) {
+          problems.push('no element with data-capstone="chance-short"');
+        } else if (answeredChance !== null) {
+          const v = share(shownChance);
+          if (v === null || Math.abs(v - answeredChance) > 0.01) {
+            problems.push(`data-capstone="chance-short" shows "${shownChance}" but the API just answered ${Math.round(answeredChance * 1000) / 10}%`);
+          }
+        }
+        const chartTag = openTag("all-data-chart");
+        const points = chartTag ? Number.parseInt(chartTag.match(/data-points="(\d+)"/)?.[1] ?? "", 10) : NaN;
         if (!chartTag) {
           problems.push('no element with data-capstone="all-data-chart"');
-        } else if (points !== rows) {
-          problems.push(`data-capstone="all-data-chart" must have data-points="${rows}" (the rows in the latest probe); got "${Number.isFinite(points) ? points : "nothing"}"`);
+        } else if (points !== mine.history.length) {
+          problems.push(`data-capstone="all-data-chart" must have data-points="${mine.history.length}" (the rows in your problem); got "${Number.isFinite(points) ? points : "nothing"}"`);
+        }
+        const outcomeHtml = inner("outcome-chart");
+        const outcomeTag = openTag("outcome-chart") ?? "";
+        if (outcomeHtml === null) {
+          problems.push('no element with data-capstone="outcome-chart"');
+        } else if (!/<(svg|img|canvas)\b/i.test(outcomeHtml) && !/^<(svg|img|canvas)\b/i.test(outcomeTag)) {
+          problems.push('data-capstone="outcome-chart" must contain the chart itself (an svg or img)');
+        }
+        const dagTag = openTag("dag");
+        const nodes = dagTag ? Number.parseInt(dagTag.match(/data-nodes="(\d+)"/)?.[1] ?? "", 10) : NaN;
+        if (!dagTag) {
+          problems.push('no element with data-capstone="dag"');
+        } else if (nodes !== mine.dag.nodes.length) {
+          problems.push(`data-capstone="dag" must have data-nodes="${mine.dag.nodes.length}" (the nodes in your recipe); got "${Number.isFinite(nodes) ? nodes : "nothing"}"`);
         }
         const unc = readAttr("uncertainty");
         if (unc === null || unc.length < 20 || !/\d/.test(unc)) {
-          problems.push('data-capstone="uncertainty" must say how confident to be, in plain words, with at least one number');
+          problems.push('data-capstone="uncertainty" must say how sure the reader can be, in plain words, with at least one number');
         }
-        const fut = readAttr("future-scenario");
-        if (fut === null || fut.length < 20) {
-          problems.push('data-capstone="future-scenario" must describe what the future looks like under your recommendation');
+        const bodyText = strip(page.text.replace(/<(script|style|noscript)\b[\s\S]*?<\/\1>/gi, " "));
+        const jargon = [
+          ["Greek letters", /[\u0391-\u03A9\u03B1-\u03C9]/],
+          ["Greek letter names", /\b(sigma|lambda|theta)\b/i],
+          ["p-values", /\bp[\s-]?values?\b|\bp\s*[<>=\u2264]\s*0?\.\d/i],
+          ['"statistically significant"', /statistical(ly)?\s+significan/i],
+          ["distribution names", /\b(poisson|gaussian|bernoulli|binomial|normal distribution|normally distributed|uniform distribution)\b/i],
+          ["distribution parameters", /\b(standard deviation|std\.? dev|variance)\b/i],
+          ['"percentile"', /percentile/i],
+          ['"bootstrap"', /bootstrap/i],
+        ].filter(([, re]) => re.test(bodyText)).map(([label]) => label);
+        if (jargon.length > 0) {
+          problems.push(`the page uses words the reader should not see: ${jargon.join(", ")}`);
         }
         if (problems.length === 0) {
-          report5(true, "/capstone report: shows the latest answer, every history row, uncertainty, and a projection");
+          report5(true, "/capstone report: shows your problem, both outcome charts, the recipe, and plain words");
         } else {
           report5(
             false,
             "/capstone report bound to live data",
-            `${problems.join("; ")}. The page must be built from loadLatest() in lib/capstone-store, not fixed text`
+            `${problems.join("; ")}. The page must be built from loadLatest() and simulateAll(), not fixed text`
           );
         }
       }

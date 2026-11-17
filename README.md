@@ -117,7 +117,7 @@ contracts (the exact JSON to send and receive) and starter code.
 | 2 — Reasoning & Uncertainty | `src/app/api/reasoning/{meta,decide}/route.ts` | `src/app/reasoning/page.tsx` |
 | 3 — Decision Simulator | `src/app/api/simulator/{meta,decide}/route.ts` | `src/app/simulator/page.tsx` |
 | 4 — Causality Audit | `src/app/api/causality/{meta,decide}/route.ts` | `src/app/causality/page.tsx` |
-| 5 — Capstone: Advocacy Report + Decision Tool | `src/app/api/capstone/{meta,decide}/route.ts` | `src/app/capstone/page.tsx` |
+| 5 — Capstone: Decision Service + Report | `src/app/api/capstone/{meta,decide}/route.ts` | `src/app/capstone/page.tsx` |
 
 ## Challenge 2: the Reasoning & Uncertainty Service
 
@@ -203,7 +203,17 @@ npm run selfcheck        # once meta answers, also runs 4 audits + the page and 
 
 Both accept a deployed URL: `npm run try-causality -- https://your-site.vercel.app`.
 
-## Challenge 5: the Capstone (Advocacy Report + Decision Tool)
+## Challenge 5: the Capstone (Decision Service + Report)
+
+You get one problem for your domain: a story, a reader, two options, the
+reader's limit, the history, and a recipe (a DAG) for simulating what each
+option could bring. Your service runs the recipe 10,000 times per option and
+picks the option the reader's limit allows. Your report shows the reader both
+sets of outcomes and recommends one, in plain words.
+
+Download your problem as `my-problem.json` from the Capstone page on the
+course platform and put it in this folder. It never changes, so your report
+can be written for that one reader.
 
 The build guide in the course book (end of Lane 5, "Build Your Capstone")
 prints every service file in full except one function you write yourself.
@@ -214,26 +224,26 @@ Chapter 22 standard. The short version of what lives where:
 |---|---|---|
 | The handshake | `src/app/api/capstone/meta/route.ts` | Paste the guide's Step 1 version over the 501 placeholder and pick your domain |
 | The memory | `supabase/capstone.sql` + `src/lib/capstone-store.ts` | Run the SQL once in Supabase's SQL Editor; the store ships ready |
-| The helpers | `src/lib/capstone-helpers.ts` | Ships ready: types, averages, and a repeatable bootstrap for ranges |
-| The brain | `src/app/api/capstone/decide/route.ts` | Write `valueOf()` for your domain (Step 4b); everything else in the file is complete |
-| The report | `src/app/capstone/page.tsx` | Yours to design (Step 5); the grader reads six `data-capstone` elements |
+| The helpers | `src/lib/capstone-helpers.ts` | Ships ready: types, repeatable random numbers, one draw per recipe node, and the summary of 10,000 results |
+| The simulation | `src/lib/capstone-simulate.ts` | Write `simulateRun()` for your domain (Step 4b); `simulateAll()` is complete |
+| The service | `src/app/api/capstone/decide/route.ts` | Ships ready: runs the simulation, applies the reader's limit, saves your own problem |
+| The report | `src/app/capstone/page.tsx` | Yours to design (Step 5); the grader reads eight `data-capstone` elements |
 
 One database step: paste `supabase/capstone.sql` into your Supabase
 project's **SQL Editor → New query** and Run. No new env vars.
 
-The same two safety scripts, for Challenge 5. Both need
-`scripts/capstone-probes.mjs`, which holds the sample probes:
+The same two safety scripts, for Challenge 5. Both get their practice
+problems and their grading from the course platform, so they need an
+internet connection:
 
 ```bash
-npm run try-capstone     # sends 6 fresh sample probes for your domain, prints yours vs correct
-npm run selfcheck        # once meta answers, also runs 3 probes + the /capstone page check
+npm run try-capstone     # sends your problem + 5 practice problems, prints yours vs correct
+npm run selfcheck        # once meta answers, also sends your problem + 2 practice problems and checks /capstone
 ```
 
 Both accept a deployed URL: `npm run try-capstone -- https://your-site.vercel.app`.
 Before your meta route exists, `npm run try-capstone -- --domain pricing`
-sends probes for one domain. To choose a domain, `npm run try-capstone -- --show`
-prints a sample problem from each of every domain's two stories, with the
-correct values, and sends nothing.
+sends practice problems for one domain.
 
 ## The beauty bonus
 

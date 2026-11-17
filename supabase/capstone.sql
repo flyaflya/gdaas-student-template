@@ -4,9 +4,10 @@
 -- The build guide (course book, end of Lane 5) explains every line.
 
 -- One row, always named "latest". Each time your /api/capstone/decide
--- answers a probe, it overwrites this row with the whole probe (story,
--- economics, every history row, and the candidates) and your answer. Your
--- /capstone report reads this row, so it can chart every history row.
+-- answers your own problem, it overwrites this row with the whole problem
+-- (story, history, options, limit, and recipe) and your answer. Test
+-- problems are answered but not saved. Your /capstone report reads this
+-- row, so it always shows your own problem.
 
 create table public.capstone_latest (
   key text primary key,

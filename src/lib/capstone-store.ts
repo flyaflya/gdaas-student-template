@@ -6,18 +6,19 @@ import type { CapstoneAnswer, CapstoneProbe } from "@/lib/capstone-helpers";
  *
  * Same reason as the other stores: your API route forgets everything the
  * moment it answers, but your /capstone report must show the same answer
- * and chart the same data. So the route writes the whole probe and the
+ * and chart the same data. So the route writes your own problem and its
  * answer to Supabase and the page reads them back.
  *
  * Two functions, two callers:
- *   - saveLatest(): called by /api/capstone/decide after every answer.
+ *   - saveLatest(): called by /api/capstone/decide after it answers your
+ *     own problem (probe.yours is true). Test problems are not saved.
  *   - loadLatest(): called by the /capstone page to build the report.
  *
  * Setup: run supabase/capstone.sql once in your Supabase SQL Editor.
  * No new env vars.
  */
 
-/** The stored probe (with every history row) and answer. */
+/** Your stored problem (with every history row) and its answer. */
 export interface CapstoneLatest {
   probe: CapstoneProbe;
   answer: CapstoneAnswer;
@@ -52,7 +53,7 @@ export async function saveLatest(probe: CapstoneProbe, answer: CapstoneAnswer): 
 }
 
 /**
- * Read the stored row back. Returns null when no probe has been answered
+ * Read the stored row back. Returns null when your problem has not been answered
  * yet, when Supabase isn't configured, or when the table doesn't exist yet.
  */
 export async function loadLatest(): Promise<CapstoneLatest | null> {
