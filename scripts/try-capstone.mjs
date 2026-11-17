@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * npm run try-capstone [-- <url>] [-- --domain staffing]
+ * npm run try-capstone [-- <url>] [-- --domain staffing] [-- --show [domain]]
  *
  * Challenge 5 practice runs, without spending a battery run. Generates six
  * fresh sample probes for your domain, sends them to YOUR
@@ -10,10 +10,14 @@
  *   npm run try-capstone                                    # local dev server
  *   npm run try-capstone -- https://your-site.vercel.app    # deployed site
  *   npm run try-capstone -- --domain pricing                # before your meta route exists
+ *   npm run try-capstone -- --show                          # print sample problems, send nothing
+ *   npm run try-capstone -- --show inventory                # the same, one domain
  *
  * Your domain comes from your /api/capstone/meta. If that route isn't built
  * yet, pass --domain. With neither, the script sends two probes from each
- * of the four domains so you can see what each one looks like.
+ * of the four domains. --show prints one problem from each of a domain's two
+ * stories (who it is for, the narrative, the numbers, the first rows, and
+ * the correct values) without contacting any site: use it to choose a domain.
  *
  * Every probe your service answers is saved to Supabase, so after a run
  * your /capstone page shows the last one. Run it again and the page should
@@ -28,7 +32,10 @@ import { DOMAINS, drawProbe, grade, round2 } from "./capstone-probes.mjs";
 const args = process.argv.slice(2);
 const domainFlag = args.indexOf("--domain");
 const forcedDomain = domainFlag >= 0 ? args[domainFlag + 1] : null;
-const urlArg = args.find((a, i) => !a.startsWith("--") && (domainFlag < 0 || i !== domainFlag + 1));
+const showFlag = args.indexOf("--show");
+const showDomain = showFlag >= 0 && DOMAINS.includes(args[showFlag + 1]) ? args[showFlag + 1] : null;
+const flagValues = new Set([domainFlag + 1, showDomain ? showFlag + 1 : -1].filter((i) => i > 0));
+const urlArg = args.find((a, i) => !a.startsWith("--") && !flagValues.has(i));
 const siteUrl = (urlArg ?? "http://localhost:3000").replace(/\/+$/, "");
 const TIMEOUT_MS = 10_000;
 
@@ -47,6 +54,28 @@ async function declaredDomain() {
 if (forcedDomain && !DOMAINS.includes(forcedDomain)) {
   console.log(`--domain must be one of ${DOMAINS.join(", ")} (got "${forcedDomain}")`);
   process.exit(1);
+}
+
+// ── --show: print sample problems and stop ─────────────────────────────────
+if (showFlag >= 0) {
+  for (const d of showDomain ? [showDomain] : DOMAINS) {
+    console.log(`\n=== ${d} ===`);
+    for (const story of [0, 1]) {
+      const { probe, values } = drawProbe(d, story, "show");
+      const { reader, ...rest } = probe.scenario.params;
+      console.log(`\nStory ${story + 1} of 2. The reader (params.reader): ${reader}`);
+      console.log(probe.scenario.narrative);
+      console.log(`params: ${JSON.stringify(rest)}`);
+      console.log(`candidates: ${probe.candidates.map((c) => `${c.id} (${c.label})`).join(", ")}`);
+      console.log(`history: ${probe.history.length} rows. The first 5:`);
+      for (const row of probe.history.slice(0, 5)) console.log(`  ${JSON.stringify(row)}`);
+      console.log(probe.scenario.valueDefinition);
+      const sorted = [...values].sort((a, b) => b[1] - a[1]);
+      console.log(`correct values, best first: ${sorted.map(([id, v]) => `${id} ${round2(v)}`).join(", ")}`);
+    }
+  }
+  console.log("\nEvery run draws fresh numbers. Both stories come up in the battery, so your report must work for either reader.");
+  process.exit(0);
 }
 const domain = forcedDomain ?? (await declaredDomain());
 const plan = domain ? Array(6).fill(domain) : DOMAINS.flatMap((d) => [d, d]);

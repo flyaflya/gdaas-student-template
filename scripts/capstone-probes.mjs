@@ -36,7 +36,35 @@ const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
 export const round2 = (v) => Math.round(v * 100) / 100;
 
 // ── The four domains (as in the course grader) ────────────────────────────
+// Each domain has two stories, and consecutive probes alternate between
+// them, as in the battery. params.reader names who the report is for.
+const STAFFING = [
+  { reader: "Patrick", unit: "cars fixed", place: "auto repair shop",
+    narrative: (price) => `Patrick runs 5 auto repair shops and can be present at exactly one shop per day. The history below records, for each shop-day, whether the boss was present and how many cars were fixed. Each fixed car is worth $${price}. Which shop should get his presence next week?` },
+  { reader: "Dana", unit: "orders shipped", place: "fulfillment depot",
+    narrative: (price) => `Dana supervises 5 fulfillment depots and can work from exactly one depot per day. The history below records, for each depot-day, whether she was on site and how many orders shipped. Each shipped order is worth $${price} in margin. Which depot should get her presence next week?` },
+];
+const INVENTORY = [
+  { reader: "the bakery owner", item: "artisan loaves",
+    narrative: (cost, price, salvage) => `A bakery must commit tomorrow's production of artisan loaves tonight. Each loaf costs $${cost} to make and sells for $${price}; unsold loaves are cleared for $${salvage} each. The history below is daily demand. How many loaves should be baked?` },
+  { reader: "the stall manager", item: "fresh poke bowls",
+    narrative: (cost, price, salvage) => `A campus food stall preps poke bowls each morning. Each bowl costs $${cost} in ingredients and sells for $${price}; unsold bowls go to the staff fridge, worth $${salvage} each. The history below is daily demand. How many bowls should be prepped?` },
+];
+const PRICING = [
+  { reader: "the product team", item: "monthly subscription", unit: "signups",
+    narrative: (cost) => `A software company A/B tested its subscription at several monthly price points, recording daily signups at each. Serving a subscriber costs $${cost}/month. The history below is (price tested, signups that day). Which price tier should become the standard?` },
+  { reader: "the car wash owner", item: "car wash package", unit: "packages sold",
+    narrative: (cost) => `A car wash rotated its premium package through several price points, recording daily sales at each. Each wash costs $${cost} in supplies and labor. The history below is (price tested, packages sold that day). Which price should the package settle at?` },
+];
+const CHANNELS = [
+  { reader: "the marketing team", names: ["search", "social", "email", "events"],
+    narrative: (budget) => `A marketing team tested each channel at a LOW and a HIGH weekly spend, recording weekly revenue. Next quarter there is $${budget}/week of extra budget, enough to move exactly ONE channel from low to high spend (the history shows the extra cost is exactly $${budget}). Which channel should get it?` },
+  { reader: "the gym chain's owner", names: ["radio", "flyers", "sponsorship", "online"],
+    narrative: (budget) => `A regional gym chain tested each advertising channel at a LOW and a HIGH weekly spend, recording weekly revenue from new signups. There is $${budget}/week of new budget, enough to move exactly ONE channel from low to high (the history shows the extra cost is exactly $${budget}). Which channel should get it?` },
+];
+
 function staffing(i) {
+  const skin = STAFFING[i % 2];
   const price = pick([40, 50, 60, 80]);
   for (;;) {
     const bases = Array.from({ length: 5 }, () => uniform(10, 45, 1));
@@ -63,12 +91,12 @@ function staffing(i) {
         type: "capstone-decision",
         domain: "staffing",
         scenario: {
-          narrative: `Patrick runs 5 auto repair shops and can be present at exactly one shop per day. The history below records, for each shop-day, whether the boss was present and how many cars were fixed. Each fixed car is worth $${price}. Which shop should get his presence next week?`,
-          params: { valuePerUnit: price, unit: "cars fixed" },
-          valueDefinition: `expectedValue = (mean cars fixed on boss-present days − mean cars fixed on boss-absent days, at your recommended location, computed on the history sent) × ${price}`,
+          narrative: skin.narrative(price),
+          params: { valuePerUnit: price, unit: skin.unit, reader: skin.reader },
+          valueDefinition: `expectedValue = (mean ${skin.unit} on boss-present days − mean ${skin.unit} on boss-absent days, at your recommended location, computed on the history sent) × ${price}`,
         },
         history: shuffle(history),
-        candidates: [1, 2, 3, 4, 5].map((s) => ({ id: `shop-${s}`, label: `auto repair shop ${s}` })),
+        candidates: [1, 2, 3, 4, 5].map((s) => ({ id: `shop-${s}`, label: `${skin.place} ${s}` })),
       },
       values: values.map((v, k) => [`shop-${k + 1}`, v]),
     };
@@ -76,6 +104,7 @@ function staffing(i) {
 }
 
 function inventory(i) {
+  const skin = INVENTORY[i % 2];
   for (;;) {
     const cost = pick([3, 4, 5]);
     const price = cost + pick([4, 5, 6]);
@@ -100,12 +129,12 @@ function inventory(i) {
         type: "capstone-decision",
         domain: "inventory",
         scenario: {
-          narrative: `A bakery must commit tomorrow's production of artisan loaves tonight. Each loaf costs $${cost} to make and sells for $${price}; unsold loaves are cleared for $${salvage} each. The history below is daily demand. How many loaves should be baked?`,
-          params: { unitCost: cost, salePrice: price, salvageValue: salvage, item: "artisan loaves" },
+          narrative: skin.narrative(cost, price, salvage),
+          params: { unitCost: cost, salePrice: price, salvageValue: salvage, item: skin.item, reader: skin.reader },
           valueDefinition: "expectedValue = average daily profit at your recommended quantity q, computed over every day in the history sent: mean of (salePrice × min(demand, q) + salvageValue × max(q − demand, 0) − unitCost × q)",
         },
         history,
-        candidates: qs.map((q) => ({ id: `qty-${q}`, label: `${q} artisan loaves` })),
+        candidates: qs.map((q) => ({ id: `qty-${q}`, label: `${q} ${skin.item}` })),
       },
       values: qs.map((q, k) => [`qty-${q}`, values[k]]),
     };
@@ -113,6 +142,7 @@ function inventory(i) {
 }
 
 function pricing(i) {
+  const skin = PRICING[i % 2];
   for (;;) {
     const cost = pick([4, 6, 8]);
     const base = int(15, 25);
@@ -132,12 +162,12 @@ function pricing(i) {
         type: "capstone-decision",
         domain: "pricing",
         scenario: {
-          narrative: `A software company A/B tested its subscription at several monthly price points, recording daily signups at each. Serving a subscriber costs $${cost}/month. The history below is (price tested, signups that day). Which price tier should become the standard?`,
-          params: { unitCost: cost, item: "monthly subscription" },
+          narrative: skin.narrative(cost),
+          params: { unitCost: cost, item: skin.item, unit: skin.unit, reader: skin.reader },
           valueDefinition: "expectedValue = daily profit at your recommended price p, computed on the history sent: (p − unitCost) × (mean unitsSold across the history days tested at price p)",
         },
         history: shuffle(history),
-        candidates: tiers.map((p) => ({ id: `price-${p}`, label: `$${p} monthly subscription` })),
+        candidates: tiers.map((p) => ({ id: `price-${p}`, label: `$${p} ${skin.item}` })),
       },
       values: tiers.map((p, k) => [`price-${p}`, values[k]]),
     };
@@ -145,7 +175,8 @@ function pricing(i) {
 }
 
 function channels(i) {
-  const names = ["search", "social", "email", "events"];
+  const skin = CHANNELS[i % 2];
+  const names = skin.names;
   for (;;) {
     const budget = pick([500, 750, 1000]);
     const history = [];
@@ -177,8 +208,8 @@ function channels(i) {
         type: "capstone-decision",
         domain: "channels",
         scenario: {
-          narrative: `A marketing team tested each channel at a LOW and a HIGH weekly spend, recording weekly revenue. Next quarter there is $${budget}/week of extra budget, enough to move exactly ONE channel from low to high spend (the history shows the extra cost is exactly $${budget}). Which channel should get it?`,
-          params: { extraBudget: budget },
+          narrative: skin.narrative(budget),
+          params: { extraBudget: budget, unit: "weekly revenue", reader: skin.reader },
           valueDefinition: "expectedValue = net weekly gain at your recommended channel, computed on the history sent: (mean revenue at HIGH spend − mean revenue at LOW spend) − extraBudget",
         },
         history: shuffle(history),
