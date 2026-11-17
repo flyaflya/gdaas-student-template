@@ -117,7 +117,7 @@ contracts (the exact JSON to send and receive) and starter code.
 | 2 — Reasoning & Uncertainty | `src/app/api/reasoning/{meta,decide}/route.ts` | `src/app/reasoning/page.tsx` |
 | 3 — Decision Simulator | `src/app/api/simulator/{meta,decide}/route.ts` | `src/app/simulator/page.tsx` |
 | 4 — Causality Audit | `src/app/api/causality/{meta,decide}/route.ts` | `src/app/causality/page.tsx` |
-| 5 — Capstone | `src/app/api/capstone/{meta,decide}/route.ts` | `src/app/capstone/page.tsx` |
+| 5 — Capstone: Advocacy Report + Decision Tool | `src/app/api/capstone/{meta,decide}/route.ts` | `src/app/capstone/page.tsx` |
 
 ## Challenge 2: the Reasoning & Uncertainty Service
 
@@ -202,6 +202,36 @@ npm run selfcheck        # once meta answers, also runs 4 audits + the page and 
 ```
 
 Both accept a deployed URL: `npm run try-causality -- https://your-site.vercel.app`.
+
+## Challenge 5: the Capstone (Advocacy Report + Decision Tool)
+
+The build guide in the course book (end of Lane 5, "Build Your Capstone")
+prints every service file in full except one function you write yourself.
+The report page is not printed: you design it, with your AI agent, to the
+Chapter 22 standard. The short version of what lives where:
+
+| Piece | File | Your job |
+|---|---|---|
+| The handshake | `src/app/api/capstone/meta/route.ts` | Paste the guide's Step 1 version over the 501 placeholder and pick your domain |
+| The memory | `supabase/capstone.sql` + `src/lib/capstone-store.ts` | Run the SQL once in Supabase's SQL Editor; the store ships ready |
+| The helpers | `src/lib/capstone-helpers.ts` | Ships ready: types, averages, and a repeatable bootstrap for ranges |
+| The brain | `src/app/api/capstone/decide/route.ts` | Write `valueOf()` for your domain (Step 4b); everything else in the file is complete |
+| The report | `src/app/capstone/page.tsx` | Yours to design (Step 5); the grader reads six `data-capstone` elements |
+
+One database step: paste `supabase/capstone.sql` into your Supabase
+project's **SQL Editor → New query** and Run. No new env vars.
+
+The same two safety scripts, for Challenge 5. Both need
+`scripts/capstone-probes.mjs`, which holds the sample probes:
+
+```bash
+npm run try-capstone     # sends 6 fresh sample probes for your domain, prints yours vs correct
+npm run selfcheck        # once meta answers, also runs 3 probes + the /capstone page check
+```
+
+Both accept a deployed URL: `npm run try-capstone -- https://your-site.vercel.app`.
+Before your meta route exists, `npm run try-capstone -- --domain pricing`
+sends probes for one domain.
 
 ## The beauty bonus
 

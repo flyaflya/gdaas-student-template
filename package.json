@@ -9,7 +9,8 @@
     "selfcheck": "node scripts/selfcheck.mjs",
     "try-reasoning": "node scripts/try-reasoning.mjs",
     "try-simulator": "node scripts/try-simulator.mjs",
-    "try-causality": "node scripts/try-causality.mjs"
+    "try-causality": "node scripts/try-causality.mjs",
+    "try-capstone": "node scripts/try-capstone.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.0",
