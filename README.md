@@ -231,7 +231,9 @@ npm run selfcheck        # once meta answers, also runs 3 probes + the /capstone
 
 Both accept a deployed URL: `npm run try-capstone -- https://your-site.vercel.app`.
 Before your meta route exists, `npm run try-capstone -- --domain pricing`
-sends probes for one domain.
+sends probes for one domain. To choose a domain, `npm run try-capstone -- --show`
+prints a sample problem from each of every domain's two stories, with the
+correct values, and sends nothing.
 
 ## The beauty bonus
 
